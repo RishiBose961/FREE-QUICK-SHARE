@@ -3,11 +3,18 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import os from 'os';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { Device } from './models/Device.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.resolve(__dirname, '../client/dist');
 
 const app = express();
 app.use(cors());
@@ -279,8 +286,7 @@ function getLocalIpAddresses() {
 
 // REST API Endpoints
 
-// 1. Health check & status
-app.get('/', async (req, res) => {
+const getStatusData = async () => {
   let totalDevices = memoryDevices.size;
   let onlineDevices = 0;
 
@@ -295,16 +301,35 @@ app.get('/', async (req, res) => {
     }
   }
 
-  res.json({
+  return {
     status: 'online',
     message: 'QuickShare Relay Server is active',
     database: isMongoConnected ? 'connected (MongoDB)' : 'in-memory (MongoDB offline)',
     activeRooms: rooms.size,
     totalDevices,
     onlineDevices,
+    webClientAvailable: fs.existsSync(distPath),
     timestamp: new Date().toISOString(),
-  });
+  };
+};
+
+// 1. Health check & status endpoint (always JSON)
+app.get('/api/status', async (req, res) => {
+  res.json(await getStatusData());
 });
+
+// Serve static Web Client if client/dist exists, otherwise return status JSON
+if (fs.existsSync(distPath)) {
+  console.log(`📦 Serving Web Client static files from: ${distPath}`);
+  app.use(express.static(distPath));
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  app.get('/', async (req, res) => {
+    res.json(await getStatusData());
+  });
+}
 
 // 2. Get registered devices
 app.get('/api/devices', async (req, res) => {

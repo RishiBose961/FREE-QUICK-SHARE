@@ -24,13 +24,23 @@ function getDefaultDeviceName() {
   return 'My Device';
 }
 
+function getDefaultServerUrl() {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location && window.location.origin) {
+    const origin = window.location.origin;
+    if (origin.startsWith('http://') || origin.startsWith('https://')) {
+      return origin;
+    }
+  }
+  return 'http://localhost:4000';
+}
+
 class DeviceService {
   constructor() {
     this.deviceId = null;
     this.deviceName = null;
     this.permanentRoomCode = null;
     this.pairedDevices = [];
-    this.serverUrl = 'http://localhost:4000';
+    this.serverUrl = getDefaultServerUrl();
     this.isLoaded = false;
   }
 

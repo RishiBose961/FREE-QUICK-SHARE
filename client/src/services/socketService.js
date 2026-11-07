@@ -1,9 +1,19 @@
 import { io } from 'socket.io-client';
 
+function getDefaultServerUrl() {
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    const origin = window.location.origin;
+    if (origin.startsWith('http://') || origin.startsWith('https://')) {
+      return origin;
+    }
+  }
+  return 'http://localhost:4000';
+}
+
 class SocketService {
   constructor() {
     this.socket = null;
-    this.serverUrl = 'http://localhost:4000'; // Default fallback
+    this.serverUrl = getDefaultServerUrl(); // Default fallback or current browser host
     this.isConnected = false;
     this.internalListeners = new Map();
     this.socketEventListeners = new Map(); // eventName -> Set<Function>

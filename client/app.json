@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "QuickShare",
-    "slug": "quickshare",
+    "slug": "qushare",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -9,6 +9,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
         "NSPhotoLibraryUsageDescription": "QuickShare needs access to your photo library to send photos and videos.",
         "NSPhotoLibraryAddUsageDescription": "QuickShare needs permission to save received photos and videos to your library.",
         "NSCameraUsageDescription": "QuickShare needs access to your camera so you can take and share photos directly."
@@ -19,14 +22,19 @@
         "backgroundColor": "#0F172A",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
+      "usesCleartextTraffic": true,
       "permissions": [
-        "INTERNET",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "READ_MEDIA_VIDEO",
-        "READ_MEDIA_IMAGES"
-      ]
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_WIFI_STATE",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.darkiller31.qushare"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -39,7 +47,21 @@
           "photosPermission": "Allow QuickShare to access your photos and videos to share them with peers.",
           "cameraPermission": "Allow QuickShare to access your camera so you can take and share photos directly."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "31198a84-ad9a-4039-b1df-1c31856602a5"
+      }
+    },
+    "owner": "darkiller31"
   }
 }

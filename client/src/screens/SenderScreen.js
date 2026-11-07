@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AlertCircle, RefreshCw } from 'lucide-react-native';
 import PinCodeDisplay from '../components/PinCodeDisplay';
 import { socketService } from '../services/socketService';
 
@@ -60,13 +60,13 @@ export default function SenderScreen({ onCancel, onConnected }) {
       ) : error ? (
         <View style={styles.centerContent}>
           <View style={styles.errorIconCircle}>
-            <Ionicons name="alert-circle-outline" size={36} color="#EF4444" />
+            <AlertCircle size={36} color="#EF4444" />
           </View>
           <Text style={styles.errorTitle}>Could Not Create Room</Text>
           <Text style={styles.errorText}>{error}</Text>
           <View style={styles.errorBtnRow}>
             <TouchableOpacity style={styles.retryBtn} onPress={initRoom} activeOpacity={0.8}>
-              <Ionicons name="refresh" size={15} color="#0F172A" />
+              <RefreshCw size={15} color="#0F172A" />
               <Text style={styles.retryBtnText}>Retry</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.backBtn} onPress={handleCancel} activeOpacity={0.7}>

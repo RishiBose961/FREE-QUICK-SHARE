@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Video, X, Play, PlayCircle, Download, Share2 } from 'lucide-react-native';
 
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B';
@@ -37,7 +37,7 @@ export default function VideoPlayerModal({ visible, item, onClose, onShare }) {
           <View style={styles.header}>
             <View style={styles.headerInfo}>
               <View style={styles.videoIconCircle}>
-                <Ionicons name="videocam" size={20} color="#EC4899" />
+                <Video size={20} color="#EC4899" />
               </View>
               <View style={styles.titleColumn}>
                 <Text style={styles.title} numberOfLines={1}>
@@ -49,7 +49,7 @@ export default function VideoPlayerModal({ visible, item, onClose, onShare }) {
               </View>
             </View>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
-              <Ionicons name="close" size={20} color="#94A3B8" />
+              <X size={20} color="#94A3B8" />
             </TouchableOpacity>
           </View>
 
@@ -72,7 +72,7 @@ export default function VideoPlayerModal({ visible, item, onClose, onShare }) {
             ) : (
               <View style={styles.nativePreviewBox}>
                 <View style={styles.playIconCircle}>
-                  <Ionicons name="play" size={32} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                  <Play size={32} color="#FFFFFF" style={{ marginLeft: 4 }} />
                 </View>
                 <Text style={styles.nativePromptTitle}>Ready to Play Video</Text>
                 <Text style={styles.nativePromptDesc}>
@@ -84,7 +84,7 @@ export default function VideoPlayerModal({ visible, item, onClose, onShare }) {
                   onPress={handlePlayNative}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="play-circle" size={18} color="#FFFFFF" />
+                  <PlayCircle size={18} color="#FFFFFF" />
                   <Text style={styles.primaryPlayBtnText}>Open in Video Player</Text>
                 </TouchableOpacity>
               </View>
@@ -94,11 +94,11 @@ export default function VideoPlayerModal({ visible, item, onClose, onShare }) {
           {/* Action Row */}
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.secondaryBtn} onPress={onShare} activeOpacity={0.7}>
-              <Ionicons
-                name={isWeb ? 'download-outline' : 'share-social-outline'}
-                size={16}
-                color="#38BDF8"
-              />
+              {isWeb ? (
+                <Download size={16} color="#38BDF8" />
+              ) : (
+                <Share2 size={16} color="#38BDF8" />
+              )}
               <Text style={styles.secondaryBtnText}>
                 {isWeb ? 'Download Video' : 'Share / Save Video'}
               </Text>

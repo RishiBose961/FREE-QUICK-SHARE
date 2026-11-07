@@ -6,7 +6,7 @@ import {
   Modal,
   TouchableOpacity,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Radio, Smartphone, X, CheckCircle2 } from 'lucide-react-native';
 
 export default function IncomingConnectionModal({
   visible,
@@ -21,12 +21,12 @@ export default function IncomingConnectionModal({
       <View style={styles.overlay}>
         <View style={styles.card}>
           <View style={styles.headerBadge}>
-            <Ionicons name="radio" size={12} color="#38BDF8" />
+            <Radio size={12} color="#38BDF8" />
             <Text style={styles.headerBadgeText}>DIRECT CONNECT REQUEST</Text>
           </View>
 
           <View style={styles.avatarCircle}>
-            <Ionicons name="phone-portrait-outline" size={34} color="#38BDF8" />
+            <Smartphone size={34} color="#38BDF8" />
           </View>
 
           <Text style={styles.title}>INCOMING CONNECTION</Text>
@@ -38,12 +38,12 @@ export default function IncomingConnectionModal({
 
           <View style={styles.buttonRow}>
             <TouchableOpacity style={styles.declineBtn} onPress={onDecline} activeOpacity={0.7}>
-              <Ionicons name="close" size={16} color="#94A3B8" />
+              <X size={16} color="#94A3B8" />
               <Text style={styles.declineBtnText}>Decline</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.acceptBtn} onPress={onAccept} activeOpacity={0.8}>
-              <Ionicons name="checkmark-circle" size={16} color="#0F172A" />
+              <CheckCircle2 size={16} color="#0F172A" />
               <Text style={styles.acceptBtnText}>Accept & Connect</Text>
             </TouchableOpacity>
           </View>

@@ -1,8 +1,29 @@
-import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  Laptop,
+  Smartphone,
+  Tablet,
+  Pencil,
+  ShieldCheck,
+  CheckCircle2,
+  Copy,
+  Info,
+  Radio,
+  RefreshCw,
+  Star,
+  Zap,
+  Wifi,
+  Hash,
+  ArrowUpCircle,
+  ChevronRight,
+  ArrowDownCircle,
+  Sliders,
+  Download,
+} from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useState } from 'react';
 import {
     ActivityIndicator,
+    Linking,
     Platform,
     ScrollView,
     StyleSheet,
@@ -40,7 +61,7 @@ export default function HomeScreen({
       lower.includes('linux') ||
       lower.includes('computer')
     ) {
-      return <MaterialCommunityIcons name="laptop" size={24} color="#38BDF8" />;
+      return <Laptop size={24} color="#38BDF8" />;
     }
     if (
       lower.includes('iphone') ||
@@ -49,15 +70,15 @@ export default function HomeScreen({
       lower.includes('galaxy') ||
       lower.includes('pixel')
     ) {
-      return <Ionicons name="phone-portrait-outline" size={24} color="#38BDF8" />;
+      return <Smartphone size={24} color="#38BDF8" />;
     }
     if (lower.includes('ipad') || lower.includes('tablet')) {
-      return <Ionicons name="tablet-portrait-outline" size={24} color="#38BDF8" />;
+      return <Tablet size={24} color="#38BDF8" />;
     }
     return Platform.OS === 'web' ? (
-      <MaterialCommunityIcons name="laptop" size={24} color="#38BDF8" />
+      <Laptop size={24} color="#38BDF8" />
     ) : (
-      <Ionicons name="phone-portrait-outline" size={24} color="#38BDF8" />
+      <Smartphone size={24} color="#38BDF8" />
     );
   };
 
@@ -101,7 +122,7 @@ export default function HomeScreen({
                 style={styles.editBtn}
                 activeOpacity={0.7}
               >
-                <Feather name="edit-2" size={12} color="#38BDF8" />
+                <Pencil size={12} color="#38BDF8" />
                 <Text style={styles.editBtnText}>Edit</Text>
               </TouchableOpacity>
             </View>
@@ -127,7 +148,7 @@ export default function HomeScreen({
             <View style={styles.roomTagRow}>
               <Text style={styles.permanentRoomLabel}>YOUR PERMANENT ROOM</Text>
               <View style={styles.permanentBadge}>
-                <Ionicons name="shield-checkmark" size={10} color="#22C55E" />
+                <ShieldCheck size={10} color="#22C55E" />
               </View>
             </View>
             <Text style={styles.permanentRoomCode}>
@@ -140,17 +161,16 @@ export default function HomeScreen({
             onPress={handleCopy}
             activeOpacity={0.7}
           >
-            <Ionicons
-              name={copiedCode ? 'checkmark-circle' : 'copy-outline'}
-              size={15}
-              color={copiedCode ? '#22C55E' : '#38BDF8'}
-            />
-          
+            {copiedCode ? (
+              <CheckCircle2 size={15} color="#22C55E" />
+            ) : (
+              <Copy size={15} color="#38BDF8" />
+            )}
           </TouchableOpacity>
         </View>
 
         <View style={styles.roomExplainerRow}>
-          <Ionicons name="information-circle-outline" size={14} color="#64748B" />
+          <Info size={14} color="#64748B" />
           <Text style={styles.permanentRoomDesc}>
             This 4-digit code never changes. Friends or your own devices can connect to you anytime!
           </Text>
@@ -161,7 +181,7 @@ export default function HomeScreen({
       <View style={styles.sectionHeader}>
         <View style={styles.sectionTitleRow}>
           <View style={styles.sectionBadge}>
-            <Ionicons name="radio-outline" size={14} color="#38BDF8" />
+            <Radio size={14} color="#38BDF8" />
             <Text style={styles.sectionTitle}>ONLINE DEVICES (1-TAP CONNECT)</Text>
           </View>
           {isRefreshingDevices ? (
@@ -172,7 +192,7 @@ export default function HomeScreen({
               style={styles.refreshBtn}
               activeOpacity={0.7}
             >
-              <Ionicons name="refresh" size={13} color="#38BDF8" />
+              <RefreshCw size={13} color="#38BDF8" />
               <Text style={styles.refreshBtnText}>Scan</Text>
             </TouchableOpacity>
           )}
@@ -199,7 +219,7 @@ export default function HomeScreen({
                     </Text>
                     {isLatestPaired && (
                       <View style={styles.pairedBadge}>
-                        <Ionicons name="star" size={9} color="#FBBF24" />
+                        <Star size={9} color="#FBBF24" />
                       </View>
                     )}
                   </View>
@@ -226,7 +246,7 @@ export default function HomeScreen({
                     disabled={isConnectingDirect}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="flash" size={13} color="#0F172A" />
+                    <Zap size={13} color="#0F172A" />
                     <Text style={styles.directConnectBtnText}>Connect</Text>
                   </TouchableOpacity>
                 )}
@@ -237,7 +257,7 @@ export default function HomeScreen({
       ) : (
         <View style={styles.emptyPeersBox}>
           <View style={styles.emptyIconCircle}>
-            <Ionicons name="wifi-outline" size={26} color="#64748B" />
+            <Wifi size={26} color="#64748B" />
           </View>
           <Text style={styles.emptyPeersTitle}>Looking for nearby devices...</Text>
           <Text style={styles.emptyPeersDesc}>
@@ -249,7 +269,7 @@ export default function HomeScreen({
       {/* 3. Manual 4-Digit Room Selection */}
       <View style={styles.sectionHeader}>
         <View style={styles.sectionBadge}>
-          <Ionicons name="keypad-outline" size={14} color="#94A3B8" />
+          <Hash size={14} color="#94A3B8" />
           <Text style={[styles.sectionTitle, { color: '#94A3B8' }]}>OR CONNECT WITH A PIN</Text>
         </View>
       </View>
@@ -262,7 +282,7 @@ export default function HomeScreen({
           activeOpacity={0.8}
         >
           <View style={[styles.iconWrapper, styles.sendIcon]}>
-            <Ionicons name="arrow-up-circle" size={28} color="#38BDF8" />
+            <ArrowUpCircle size={28} color="#38BDF8" />
           </View>
           <View style={styles.cardContent}>
             <Text style={styles.cardTitle}>Send Files</Text>
@@ -270,7 +290,7 @@ export default function HomeScreen({
               Generate a temporary 4-digit room code for receiver to join.
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#64748B" />
+          <ChevronRight size={18} color="#64748B" />
         </TouchableOpacity>
 
         {/* Receive Option */}
@@ -280,7 +300,7 @@ export default function HomeScreen({
           activeOpacity={0.8}
         >
           <View style={[styles.iconWrapper, styles.receiveIcon]}>
-            <Ionicons name="arrow-down-circle" size={28} color="#C084FC" />
+            <ArrowDownCircle size={28} color="#C084FC" />
           </View>
           <View style={styles.cardContent}>
             <Text style={styles.cardTitle}>Receive Files</Text>
@@ -288,9 +308,35 @@ export default function HomeScreen({
               Enter any 4-digit code or permanent room number to connect.
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#64748B" />
+          <ChevronRight size={18} color="#64748B" />
         </TouchableOpacity>
       </View>
+
+      {/* 4. Download Android App Banner (Visible on Web) */}
+      {Platform.OS === 'web' && (
+        <TouchableOpacity
+          style={styles.apkDownloadCard}
+          onPress={() => {
+            const apkUrl =
+              typeof window !== 'undefined' && window.location?.origin
+                ? `${window.location.origin}/download/apk`
+                : `${serverUrl || 'http://localhost:4000'}/download/apk`;
+            Linking.openURL(apkUrl);
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.apkDownloadIconWrapper}>
+            <Download size={20} color="#0F172A" />
+          </View>
+          <View style={styles.apkDownloadContent}>
+            <Text style={styles.apkDownloadTitle}>Download Android App</Text>
+            <Text style={styles.apkDownloadSubtitle}>
+              Install QuickShare APK on your Android phone for rapid file transfers
+            </Text>
+          </View>
+          <ChevronRight size={18} color="#38BDF8" />
+        </TouchableOpacity>
+      )}
 
       {/* 5. Connection info bar */}
       <TouchableOpacity
@@ -315,7 +361,7 @@ export default function HomeScreen({
           </View>
         </View>
         <View style={styles.configurePill}>
-          <Ionicons name="options-outline" size={12} color="#38BDF8" />
+          <Sliders size={12} color="#38BDF8" />
           <Text style={styles.serverBarAction}>Configure</Text>
         </View>
       </TouchableOpacity>
@@ -797,5 +843,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#38BDF8',
+  },
+  apkDownloadCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    gap: 12,
+  },
+  apkDownloadIconWrapper: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#38BDF8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  apkDownloadContent: {
+    flex: 1,
+  },
+  apkDownloadTitle: {
+    color: '#F8FAFC',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  apkDownloadSubtitle: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 2,
   },
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Zap, Wifi, WifiOff, Settings, LogOut } from 'lucide-react-native';
 
 export default function Header({
   title = 'QuickShare',
@@ -15,7 +15,7 @@ export default function Header({
       {/* Brand / Title Section */}
       <View style={styles.left}>
         <View style={styles.brandIconBox}>
-          <Ionicons name="flash" size={18} color="#38BDF8" />
+          <Zap size={18} color="#38BDF8" />
         </View>
         <View style={styles.titleColumn}>
           <Text style={styles.title}>{title}</Text>
@@ -31,11 +31,11 @@ export default function Header({
           onPress={onOpenSettings}
           activeOpacity={0.7}
         >
-          <Ionicons
-            name={isConnected ? 'wifi' : 'cloud-offline-outline'}
-            size={13}
-            color={isConnected ? '#22C55E' : '#EF4444'}
-          />
+          {isConnected ? (
+            <Wifi size={13} color="#22C55E" />
+          ) : (
+            <WifiOff size={13} color="#EF4444" />
+          )}
           <Text style={[styles.statusText, isConnected ? styles.connectedText : styles.disconnectedText]}>
             {isConnected ? 'Online' : 'Offline'}
           </Text>
@@ -48,7 +48,7 @@ export default function Header({
             onPress={onOpenSettings}
             activeOpacity={0.7}
           >
-            <Ionicons name="settings-outline" size={18} color="#94A3B8" />
+            <Settings size={18} color="#94A3B8" />
           </TouchableOpacity>
         )}
 
@@ -59,7 +59,7 @@ export default function Header({
             onPress={onDisconnect}
             activeOpacity={0.7}
           >
-            <Ionicons name="log-out-outline" size={15} color="#F87171" />
+            <LogOut size={15} color="#F87171" />
             <Text style={styles.disconnectText}>Exit</Text>
           </TouchableOpacity>
         ) : null}

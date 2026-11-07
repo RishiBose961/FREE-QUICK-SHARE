@@ -66,6 +66,10 @@ Whether deployed on a **Raspberry Pi in a classroom**, a **server in a corporate
 - **🚀 High-Throughput Chunked Streaming**:
   - Files are streamed as 48 KB base64 chunks over high-buffer WebSockets (up to 50 MB packet capacity).
   - Real-time progress bars, byte transfer counters, and chunk-acknowledgment integrity verification.
+- **📁 Multi-File Selection & Sequential Queue Engine**:
+  - Select multiple photos, images, videos, or documents at once from the gallery or file browser.
+  - Files are automatically placed into an intelligent transmission queue with immediate visual feedback (`Queued` badges, live progress on active transfer, and dedicated Queue banner).
+  - Streamed sequentially without socket congestion, memory bloat, or dropped connections.
 - **🌐 Built-in Zero-Install Web Client**:
   - Raspberry Pi / Server serves the exported web client directly from the same port.
   - Users on laptops, Chromebooks, or guest phones simply open their browser to start transferring.
@@ -655,37 +659,55 @@ When running the Android or iOS native app, the device needs to know your Raspbe
 
 ## 🛡️ Firewall & Network Configuration
 
-If devices cannot connect to the Raspberry Pi:
+If devices or standalone APK builds cannot connect to the server:
 
-### 1. Allow Port 4000 in Ubuntu/Debian Firewall (UFW)
+### 1. Android Standalone APK (Cleartext HTTP Policy)
+Starting with Android 9 (API 28+), Android blocks all non-HTTPS (cleartext HTTP) traffic by default in standalone release APKs.
+QuickShare includes this in `client/app.json`:
+```json
+"android": {
+  "usesCleartextTraffic": true
+}
+```
+This enables the Android APK to communicate with local IP addresses (`http://192.168.X.X:4000`) over your local Wi-Fi.
+
+### 2. Allow Port 4000 in Ubuntu/Debian / Raspberry Pi Firewall (UFW)
 ```bash
 sudo ufw allow 4000/tcp comment "QuickShare Server"
 sudo ufw reload
 ```
 
-### 2. Disable "AP Isolation" / "Client Isolation" on Router
+### 3. Allow Port 4000 in Windows Firewall (if running server on PC)
+If your relay server runs on Windows, Windows Defender Firewall blocks inbound traffic on port 4000 by default:
+```powershell
+New-NetFirewallRule -DisplayName "QuickShare Port 4000" -Direction Inbound -LocalPort 4000 -Protocol TCP -Action Allow
+```
+
+### 4. Disable "AP Isolation" / "Client Isolation" on Router
 Some school, university, or office Wi-Fi routers enable **AP Isolation** (or Client Isolation). When enabled, wireless devices cannot communicate directly with other devices on the same Wi-Fi.
 - Log into your Wi-Fi router admin page.
 - Navigate to **Wireless Settings** ➔ **Advanced**.
 - Ensure **AP Isolation / Client Isolation / Guest Mode Isolation** is turned **OFF**.
 
-### 3. Verify Server Reachability
+### 5. Verify Server Reachability
 From your computer or phone browser, test if the server responds:
 ```bash
-curl http://<raspberry-pi-ip>:4000/api/status
+curl http://<server-ip>:4000/api/status
 ```
+*(Or use the built-in **"Test Connection"** button inside the app's Server URL Settings modal).*
 
 ---
 
 ## ❓ Troubleshooting & FAQ
 
 <details>
-<summary><b>1. The mobile app says "Disconnected" or cannot reach server</b></summary>
+<summary><b>1. The standalone APK says "Disconnected" or cannot reach server IP</b></summary>
 
-- Verify that your phone and Raspberry Pi are on the **exact same Wi-Fi network**.
-- Check if your router has AP Isolation enabled.
-- Confirm the IP address of your Raspberry Pi with `hostname -I` and enter `http://<pi-ip>:4000` in the app's Server URL settings.
-- Check firewall settings on the Pi: `sudo ufw allow 4000/tcp`.
+- **"localhost" points to the phone**: When using a physical phone, `localhost` (127.0.0.1) refers to the phone itself, not your server. In the app, tap the **Server URL pill** or gear icon and enter your computer or Raspberry Pi's actual LAN IP address: `http://192.168.1.X:4000`.
+- **Use the in-app "Test Connection" button**: Tap "Test Connection" inside the Server URL modal to verify reachability.
+- **Cleartext Traffic Policy**: Ensure `"usesCleartextTraffic": true` is present under `"android"` in `app.json` before building the APK (already pre-configured in this repository).
+- **Same Wi-Fi Network**: Ensure your phone and server are connected to the same Wi-Fi network (and not on mobile data).
+- **Host Firewall**: If running on Windows, make sure Windows Firewall allows TCP port 4000. On Linux, run `sudo ufw allow 4000/tcp`.
 </details>
 
 <details>

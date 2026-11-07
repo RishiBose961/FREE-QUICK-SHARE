@@ -88,7 +88,138 @@ class FileTransferService {
   constructor() {
     this.activeReceives = new Map(); // id -> { metadata, chunks, receivedCount, status }
     this.listeners = new Set();
+    this.sendQueue = []; // Queue of file payloads to send sequentially
+    this.isProcessingQueue = false;
+    this.currentTransferId = null;
     this.setupSocketListeners();
+  }
+
+  /**
+   * Clear any remaining pending items from the queue (e.g. on disconnect)
+   */
+  clearQueue() {
+    if (this.sendQueue.length > 0) {
+      console.log(`[Transfer Queue] Clearing ${this.sendQueue.length} queued items`);
+      for (const item of this.sendQueue) {
+        this.notifyListeners({
+          type: 'send-error',
+          item: {
+            id: item.id,
+            status: 'failed',
+            error: 'Session ended',
+          },
+        });
+      }
+      this.sendQueue = [];
+    }
+    this.isProcessingQueue = false;
+    this.currentTransferId = null;
+  }
+
+  /**
+   * Enqueue one or multiple files for sequential transmission
+   */
+  enqueueFiles(filePayloads) {
+    if (!filePayloads || filePayloads.length === 0) return [];
+
+    const enqueuedItems = [];
+
+    // 1. Prepare items and assign unique transfer IDs
+    for (const payload of filePayloads) {
+      const transferId =
+        payload.id ||
+        `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+      const isFirstAndIdle =
+        !this.isProcessingQueue &&
+        enqueuedItems.length === 0 &&
+        this.sendQueue.length === 0;
+
+      const queueItem = {
+        ...payload,
+        id: transferId,
+        progress: 0,
+        status: isFirstAndIdle ? 'transferring' : 'queued',
+        direction: 'outgoing',
+      };
+
+      this.sendQueue.push(queueItem);
+      enqueuedItems.push(queueItem);
+    }
+
+    // 2. Notify UI in reverse order so item 0 (the first one) appears at the top of feed
+    for (let i = enqueuedItems.length - 1; i >= 0; i--) {
+      const item = enqueuedItems[i];
+      this.notifyListeners({
+        type: 'send-start',
+        item: {
+          id: item.id,
+          name: item.name,
+          size: item.size || 0,
+          type: item.type || 'file',
+          mimeType: item.mimeType,
+          progress: 0,
+          status: item.status,
+          direction: 'outgoing',
+          localUri: item.uri,
+          dataUri:
+            item.type === 'image' && item.preloadedBase64
+              ? `data:${item.mimeType};base64,${item.preloadedBase64}`
+              : null,
+        },
+      });
+    }
+
+    // 3. Process queue
+    this.processQueue();
+
+    return enqueuedItems;
+  }
+
+  /**
+   * Sequential queue worker: pulls items one by one and streams them over socket
+   */
+  async processQueue() {
+    if (this.isProcessingQueue) {
+      return;
+    }
+
+    this.isProcessingQueue = true;
+
+    while (this.sendQueue.length > 0) {
+      const currentItem = this.sendQueue.shift();
+      this.currentTransferId = currentItem.id;
+
+      // Update item status to 'transferring'
+      this.notifyListeners({
+        type: 'send-progress',
+        item: {
+          id: currentItem.id,
+          progress: 0,
+          status: 'transferring',
+        },
+      });
+
+      try {
+        await this.executeSendFile(currentItem);
+      } catch (err) {
+        console.error(`[Transfer Queue] Error sending ${currentItem.name}:`, err);
+        // executeSendFile already notifies 'send-error', continue with next item
+      }
+
+      // Small buffer between queued files to allow socket buffer flush
+      if (this.sendQueue.length > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    }
+
+    this.currentTransferId = null;
+    this.isProcessingQueue = false;
+
+    this.notifyListeners({
+      type: 'queue-complete',
+      remaining: 0,
+    });
   }
 
   setupSocketListeners() {
@@ -249,62 +380,67 @@ class FileTransferService {
   }
 
   /**
-   * Pick and send any document/file.
-   * Uses copyToCacheDirectory: false so Android returns the direct content:// URI,
-   * which is reliably readable and can be copied into Expo Go's scoped storage without sandbox permission rejections.
+   * Pick and send any document/file. Supports multiple file selection in queue.
    */
   async pickAndSendDocument(roomCode) {
     const result = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: false,
       type: '*/*',
+      multiple: true,
     });
 
     if (result.canceled || !result.assets || result.assets.length === 0) {
-      return null;
+      return [];
     }
 
-    const asset = result.assets[0];
-    const fileName = asset.name || `file_${Date.now()}`;
-    const rawMime = asset.mimeType || 'application/octet-stream';
+    const filePayloads = result.assets.map((asset, index) => {
+      const fileName = asset.name || `file_${Date.now()}_${index + 1}`;
+      const rawMime = asset.mimeType || 'application/octet-stream';
 
-    // Auto-detect media type
-    let detectedType = 'file';
-    const lowerName = fileName.toLowerCase();
-    if (
-      rawMime.startsWith('video/') ||
-      lowerName.endsWith('.mp4') ||
-      lowerName.endsWith('.mov') ||
-      lowerName.endsWith('.mkv') ||
-      lowerName.endsWith('.webm') ||
-      lowerName.endsWith('.3gp') ||
-      lowerName.endsWith('.avi') ||
-      lowerName.endsWith('.m4v')
-    ) {
-      detectedType = 'video';
-    } else if (
-      rawMime.startsWith('image/') ||
-      lowerName.endsWith('.jpg') ||
-      lowerName.endsWith('.jpeg') ||
-      lowerName.endsWith('.png') ||
-      lowerName.endsWith('.gif') ||
-      lowerName.endsWith('.webp')
-    ) {
-      detectedType = 'image';
-    }
+      // Auto-detect media type
+      let detectedType = 'file';
+      const lowerName = fileName.toLowerCase();
+      if (
+        rawMime.startsWith('video/') ||
+        lowerName.endsWith('.mp4') ||
+        lowerName.endsWith('.mov') ||
+        lowerName.endsWith('.mkv') ||
+        lowerName.endsWith('.webm') ||
+        lowerName.endsWith('.3gp') ||
+        lowerName.endsWith('.avi') ||
+        lowerName.endsWith('.m4v')
+      ) {
+        detectedType = 'video';
+      } else if (
+        rawMime.startsWith('image/') ||
+        lowerName.endsWith('.jpg') ||
+        lowerName.endsWith('.jpeg') ||
+        lowerName.endsWith('.png') ||
+        lowerName.endsWith('.gif') ||
+        lowerName.endsWith('.webp')
+      ) {
+        detectedType = 'image';
+      }
 
-    return this.sendFile({
-      uri: asset.uri,
-      name: fileName,
-      size: asset.size || 0,
-      mimeType: detectedType === 'video' && rawMime === 'application/octet-stream' ? 'video/mp4' : rawMime,
-      type: detectedType,
-      domFile: asset.file || null,
-      roomCode,
+      return {
+        uri: asset.uri,
+        name: fileName,
+        size: asset.size || 0,
+        mimeType:
+          detectedType === 'video' && rawMime === 'application/octet-stream'
+            ? 'video/mp4'
+            : rawMime,
+        type: detectedType,
+        domFile: asset.file || null,
+        roomCode,
+      };
     });
+
+    return this.enqueueFiles(filePayloads);
   }
 
   /**
-   * Pick and send Image
+   * Pick and send one or multiple Images in transmission queue
    */
   async pickAndSendImage(roomCode) {
     if (Platform.OS !== 'web') {
@@ -316,32 +452,58 @@ class FileTransferService {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: 0,
       allowsEditing: false,
       quality: 0.9,
-      base64: true,
     });
 
     if (result.canceled || !result.assets || result.assets.length === 0) {
-      return null;
+      return [];
     }
 
-    const asset = result.assets[0];
-    const fileName = asset.fileName || (asset.file && asset.file.name) || `image_${Date.now()}.jpg`;
+    const filePayloads = result.assets.map((asset, index) => {
+      let ext = '.jpg';
+      if (asset.uri) {
+        const parts = asset.uri.split('?')[0].split('.');
+        if (parts.length > 1) {
+          const candidate = parts.pop().toLowerCase();
+          if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'].includes(candidate)) {
+            ext = `.${candidate}`;
+          }
+        }
+      }
 
-    return this.sendFile({
-      uri: asset.uri,
-      name: fileName,
-      size: asset.fileSize || (asset.file && asset.file.size) || asset.size || 0,
-      mimeType: asset.mimeType || (asset.file && asset.file.type) || 'image/jpeg',
-      type: 'image',
-      preloadedBase64: asset.base64 || null,
-      domFile: asset.file || null,
-      roomCode,
+      const fileName =
+        asset.fileName ||
+        (asset.file && asset.file.name) ||
+        `photo_${Date.now()}_${index + 1}${ext}`;
+
+      const rawMime = asset.mimeType || (asset.file && asset.file.type);
+      let mimeType = rawMime;
+      if (!mimeType || mimeType === 'application/octet-stream') {
+        if (ext === '.png') mimeType = 'image/png';
+        else if (ext === '.gif') mimeType = 'image/gif';
+        else if (ext === '.webp') mimeType = 'image/webp';
+        else mimeType = 'image/jpeg';
+      }
+
+      return {
+        uri: asset.uri,
+        name: fileName,
+        size: asset.fileSize || (asset.file && asset.file.size) || asset.size || 0,
+        mimeType,
+        type: 'image',
+        domFile: asset.file || null,
+        roomCode,
+      };
     });
+
+    return this.enqueueFiles(filePayloads);
   }
 
   /**
-   * Capture photo directly with Camera and send/share to peer
+   * Capture photo directly with Camera and send/share to peer in queue
    */
   async captureAndSendCamera(roomCode) {
     if (Platform.OS !== 'web') {
@@ -355,30 +517,30 @@ class FileTransferService {
       mediaTypes: ['images'],
       allowsEditing: false,
       quality: 0.85,
-      base64: true,
     });
 
     if (result.canceled || !result.assets || result.assets.length === 0) {
-      return null;
+      return [];
     }
 
     const asset = result.assets[0];
     const fileName = asset.fileName || (asset.file && asset.file.name) || `photo_${Date.now()}.jpg`;
 
-    return this.sendFile({
-      uri: asset.uri,
-      name: fileName,
-      size: asset.fileSize || (asset.file && asset.file.size) || asset.size || 0,
-      mimeType: asset.mimeType || (asset.file && asset.file.type) || 'image/jpeg',
-      type: 'image',
-      preloadedBase64: asset.base64 || null,
-      domFile: asset.file || null,
-      roomCode,
-    });
+    return this.enqueueFiles([
+      {
+        uri: asset.uri,
+        name: fileName,
+        size: asset.fileSize || (asset.file && asset.file.size) || asset.size || 0,
+        mimeType: asset.mimeType || (asset.file && asset.file.type) || 'image/jpeg',
+        type: 'image',
+        domFile: asset.file || null,
+        roomCode,
+      },
+    ]);
   }
 
   /**
-   * Pick and send Video
+   * Pick and send one or multiple Videos in transmission queue
    */
   async pickAndSendVideo(roomCode) {
     if (Platform.OS !== 'web') {
@@ -390,60 +552,70 @@ class FileTransferService {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['videos'],
+      allowsMultipleSelection: true,
+      selectionLimit: 0,
       allowsEditing: false,
       quality: 1,
-      base64: true, // Provides base64 directly on web
       shouldDownloadFromNetwork: true, // Handles iOS iCloud videos
     });
 
     if (result.canceled || !result.assets || result.assets.length === 0) {
-      return null;
+      return [];
     }
 
-    const asset = result.assets[0];
+    const filePayloads = result.assets.map((asset, index) => {
+      let fileName =
+        asset.fileName ||
+        (asset.file && asset.file.name) ||
+        `video_${Date.now()}_${index + 1}.mp4`;
+      if (!fileName.includes('.')) {
+        const ext =
+          asset.mimeType === 'video/quicktime' || asset.uri?.toLowerCase().endsWith('.mov')
+            ? '.mov'
+            : '.mp4';
+        fileName = `${fileName}${ext}`;
+      }
 
-    // Ensure valid filename with video extension
-    let fileName = asset.fileName || (asset.file && asset.file.name) || `video_${Date.now()}.mp4`;
-    if (!fileName.includes('.')) {
-      const ext =
-        asset.mimeType === 'video/quicktime' || asset.uri?.toLowerCase().endsWith('.mov')
-          ? '.mov'
-          : '.mp4';
-      fileName = `${fileName}${ext}`;
-    }
+      let mimeType = asset.mimeType || (asset.file && asset.file.type);
+      if (!mimeType || mimeType === 'application/octet-stream') {
+        const lower = fileName.toLowerCase();
+        if (lower.endsWith('.mov')) mimeType = 'video/quicktime';
+        else if (lower.endsWith('.webm')) mimeType = 'video/webm';
+        else if (lower.endsWith('.mkv')) mimeType = 'video/x-matroska';
+        else if (lower.endsWith('.3gp')) mimeType = 'video/3gpp';
+        else if (lower.endsWith('.avi')) mimeType = 'video/x-msvideo';
+        else mimeType = 'video/mp4';
+      }
 
-    // Determine correct MIME type
-    let mimeType = asset.mimeType || (asset.file && asset.file.type);
-    if (!mimeType || mimeType === 'application/octet-stream') {
-      const lower = fileName.toLowerCase();
-      if (lower.endsWith('.mov')) mimeType = 'video/quicktime';
-      else if (lower.endsWith('.webm')) mimeType = 'video/webm';
-      else if (lower.endsWith('.mkv')) mimeType = 'video/x-matroska';
-      else if (lower.endsWith('.3gp')) mimeType = 'video/3gpp';
-      else if (lower.endsWith('.avi')) mimeType = 'video/x-msvideo';
-      else mimeType = 'video/mp4';
-    }
+      const fileSize = asset.fileSize || (asset.file && asset.file.size) || asset.size || 0;
 
-    // Determine video size
-    let fileSize = asset.fileSize || (asset.file && asset.file.size) || asset.size || 0;
-
-    return this.sendFile({
-      uri: asset.uri,
-      name: fileName,
-      size: fileSize,
-      mimeType,
-      type: 'video',
-      preloadedBase64: asset.base64 || null,
-      domFile: asset.file || null,
-      roomCode,
+      return {
+        uri: asset.uri,
+        name: fileName,
+        size: fileSize,
+        mimeType,
+        type: 'video',
+        domFile: asset.file || null,
+        roomCode,
+      };
     });
+
+    return this.enqueueFiles(filePayloads);
+  }
+
+  /**
+   * Universal send file method: enqueues the file to the transmission queue
+   */
+  async sendFile(fileOptions) {
+    const enqueued = this.enqueueFiles([fileOptions]);
+    return enqueued[0]?.id;
   }
 
   /**
    * Stream file chunks across the socket relay with memory-efficient streaming
    */
-  async sendFile({ uri, name, size, mimeType, type, preloadedBase64, domFile, roomCode }) {
-    const transferId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  async executeSendFile({ id, uri, name, size, mimeType, type, preloadedBase64, domFile, roomCode }) {
+    const transferId = id || `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     let activeUri = uri;
 
     // Ensure activeUri is in a readable location for Expo Go
@@ -723,6 +895,51 @@ class FileTransferService {
         item: { id: transferId, status: 'failed', error: err.message },
       });
       throw err;
+    }
+  }
+
+  /**
+   * Dedicated download method: direct browser download on Web, save/share prompt on Mobile
+   */
+  async downloadFile(localUri, fileName, mimeType = null) {
+    if (Platform.OS === 'web') {
+      const link = document.createElement('a');
+      link.href = localUri;
+      link.download = fileName || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    // Native Mobile (Android & iOS)
+    let downloadUri = localUri;
+    if (downloadUri && downloadUri.startsWith('content://')) {
+      const baseDir = (FileSystem.cacheDirectory || '').replace(/\/?$/, '/');
+      const safeName = (fileName || 'download').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const tempPath = `${baseDir}dl_${Date.now()}_${safeName}`;
+      await FileSystem.copyAsync({ from: downloadUri, to: tempPath });
+      downloadUri = tempPath;
+    }
+
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (isAvailable) {
+      let resolvedMime = mimeType;
+      if (!resolvedMime) {
+        const lower = (fileName || '').toLowerCase();
+        if (lower.endsWith('.mp4')) resolvedMime = 'video/mp4';
+        else if (lower.endsWith('.mov')) resolvedMime = 'video/quicktime';
+        else if (lower.endsWith('.webm')) resolvedMime = 'video/webm';
+        else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) resolvedMime = 'image/jpeg';
+        else if (lower.endsWith('.png')) resolvedMime = 'image/png';
+        else if (lower.endsWith('.pdf')) resolvedMime = 'application/pdf';
+        else resolvedMime = 'application/octet-stream';
+      }
+
+      await Sharing.shareAsync(downloadUri, {
+        mimeType: resolvedMime,
+        dialogTitle: fileName ? `Save ${fileName}` : 'Save / Download File',
+      });
     }
   }
 

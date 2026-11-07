@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
+import { Hash, Clipboard, Zap, XCircle } from 'lucide-react-native';
+import * as ClipboardModule from 'expo-clipboard';
 
 export default function PinCodeInput({ code, onChangeCode, onSubmit, isLoading, onCancel }) {
   const inputRef = useRef(null);
@@ -16,7 +16,7 @@ export default function PinCodeInput({ code, onChangeCode, onSubmit, isLoading, 
 
   const handlePaste = async () => {
     try {
-      const text = await Clipboard.getStringAsync();
+      const text = await ClipboardModule.getStringAsync();
       const clean = text.replace(/[^0-9]/g, '').slice(0, 4);
       if (clean) {
         onChangeCode(clean);
@@ -30,7 +30,7 @@ export default function PinCodeInput({ code, onChangeCode, onSubmit, isLoading, 
   return (
     <View style={styles.container}>
       <View style={styles.topIconCircle}>
-        <Ionicons name="keypad-outline" size={32} color="#C084FC" />
+        <Hash size={32} color="#C084FC" />
       </View>
 
       <Text style={styles.heading}>Enter 4-Digit Code</Text>
@@ -81,7 +81,7 @@ export default function PinCodeInput({ code, onChangeCode, onSubmit, isLoading, 
 
       {/* Quick Paste from Clipboard button */}
       <TouchableOpacity style={styles.pasteBtn} onPress={handlePaste} activeOpacity={0.7}>
-        <Ionicons name="clipboard-outline" size={14} color="#C084FC" />
+        <Clipboard size={14} color="#C084FC" />
         <Text style={styles.pasteBtnText}>Paste from Clipboard</Text>
       </TouchableOpacity>
 
@@ -99,7 +99,7 @@ export default function PinCodeInput({ code, onChangeCode, onSubmit, isLoading, 
           <ActivityIndicator color="#0F172A" />
         ) : (
           <>
-            <Ionicons name="flash" size={16} color="#0F172A" />
+            <Zap size={16} color="#0F172A" />
             <Text style={styles.connectBtnText}>Connect & Start Transfer</Text>
           </>
         )}
@@ -107,7 +107,7 @@ export default function PinCodeInput({ code, onChangeCode, onSubmit, isLoading, 
 
       {onCancel ? (
         <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} activeOpacity={0.7}>
-          <Ionicons name="close-circle-outline" size={16} color="#94A3B8" />
+          <XCircle size={16} color="#94A3B8" />
           <Text style={styles.cancelText}>Cancel & Go Back</Text>
         </TouchableOpacity>
       ) : null}

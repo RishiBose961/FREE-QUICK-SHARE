@@ -8,7 +8,15 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  ArrowLeftRight,
+  FileText,
+  Image,
+  Camera,
+  Video,
+  MessageSquare,
+  Layers,
+} from 'lucide-react-native';
 import TransferCard from '../components/TransferCard';
 import TextMessageModal from '../components/TextMessageModal';
 import { fileTransferService } from '../services/fileTransferService';
@@ -16,8 +24,11 @@ import { socketService } from '../services/socketService';
 
 export default function TransferScreen({ roomCode, role, peerName, onDisconnect }) {
   const [transfers, setTransfers] = useState([]);
-  const [isSending, setIsSending] = useState(false);
+  const [isPicking, setIsPicking] = useState(false);
   const [textModalVisible, setTextModalVisible] = useState(false);
+  const [peerReconnecting, setPeerReconnecting] = useState(false);
+
+  const queuedCount = transfers.filter((t) => t.status === 'queued').length;
 
   useEffect(() => {
     // Ensure socket knows current room code
@@ -28,7 +39,7 @@ export default function TransferScreen({ roomCode, role, peerName, onDisconnect 
     // 1. Subscribe to file transfer lifecycle events
     const unsubscribe = fileTransferService.subscribe((event) => {
       setTransfers((prev) => {
-        const existingIndex = prev.findIndex((item) => item.id === event.item.id);
+        const existingIndex = prev.findIndex((item) => item.id === event.item?.id);
 
         if (event.type === 'send-start' || event.type === 'receive-start') {
           if (existingIndex >= 0) {
@@ -65,10 +76,6 @@ export default function TransferScreen({ roomCode, role, peerName, onDisconnect 
 
         return prev;
       });
-
-      if (event.type === 'send-complete' || event.type === 'send-error') {
-        setIsSending(false);
-      }
     });
 
     // 2. Listen for incoming text messages
@@ -87,11 +94,25 @@ export default function TransferScreen({ roomCode, role, peerName, onDisconnect 
 
     socketService.on('receive-message', handleReceiveMessage);
 
-    // 3. Listen for peer disconnect
+    // 3. Listen for temporary reconnecting state
+    const handlePeerReconnecting = () => {
+      setPeerReconnecting(true);
+    };
+
+    const handlePeerReconnected = () => {
+      setPeerReconnecting(false);
+    };
+
+    socketService.on('peer-reconnecting', handlePeerReconnecting);
+    socketService.on('peer-reconnected', handlePeerReconnected);
+
+    // 4. Listen for final peer disconnect
     const handlePeerDisconnect = (data) => {
+      fileTransferService.clearQueue();
+      setPeerReconnecting(false);
       Alert.alert(
-        'Peer Disconnected',
-        data.message || 'The connected peer has left the session.',
+        data?.intentional ? 'Peer Left Session' : 'Session Ended',
+        data?.message || 'The connected peer has left the session.',
         [{ text: 'OK', onPress: onDisconnect }]
       );
     };
@@ -100,57 +121,60 @@ export default function TransferScreen({ roomCode, role, peerName, onDisconnect 
 
     return () => {
       unsubscribe();
+      fileTransferService.clearQueue();
       socketService.off('receive-message', handleReceiveMessage);
+      socketService.off('peer-reconnecting', handlePeerReconnecting);
+      socketService.off('peer-reconnected', handlePeerReconnected);
       socketService.off('peer-disconnected', handlePeerDisconnect);
     };
   }, []);
 
-  // Handlers for picking and sharing different media
+  // Handlers for picking and sharing media (supports multiple items in queue)
   const handleSendDocument = async () => {
-    if (isSending) return;
+    if (isPicking) return;
     try {
-      setIsSending(true);
+      setIsPicking(true);
       await fileTransferService.pickAndSendDocument(roomCode);
     } catch (err) {
       if (err.message) Alert.alert('Transfer Error', err.message);
     } finally {
-      setIsSending(false);
+      setIsPicking(false);
     }
   };
 
   const handleSendImage = async () => {
-    if (isSending) return;
+    if (isPicking) return;
     try {
-      setIsSending(true);
+      setIsPicking(true);
       await fileTransferService.pickAndSendImage(roomCode);
     } catch (err) {
       if (err.message) Alert.alert('Transfer Error', err.message);
     } finally {
-      setIsSending(false);
+      setIsPicking(false);
     }
   };
 
   const handleCaptureCamera = async () => {
-    if (isSending) return;
+    if (isPicking) return;
     try {
-      setIsSending(true);
+      setIsPicking(true);
       await fileTransferService.captureAndSendCamera(roomCode);
     } catch (err) {
       if (err.message) Alert.alert('Camera Error', err.message);
     } finally {
-      setIsSending(false);
+      setIsPicking(false);
     }
   };
 
   const handleSendVideo = async () => {
-    if (isSending) return;
+    if (isPicking) return;
     try {
-      setIsSending(true);
+      setIsPicking(true);
       await fileTransferService.pickAndSendVideo(roomCode);
     } catch (err) {
       if (err.message) Alert.alert('Transfer Error', err.message);
     } finally {
-      setIsSending(false);
+      setIsPicking(false);
     }
   };
 
@@ -189,11 +213,31 @@ export default function TransferScreen({ roomCode, role, peerName, onDisconnect 
         </View>
       </View>
 
+      {/* Temporary Reconnecting Notice Banner */}
+      {peerReconnecting && (
+        <View style={styles.reconnectingBanner}>
+          <ActivityIndicator size="small" color="#FBBF24" />
+          <Text style={styles.reconnectingText}>
+            Peer connection interrupted. Waiting for peer to reconnect...
+          </Text>
+        </View>
+      )}
+
+      {/* Transfer Queue Info Banner */}
+      {queuedCount > 0 && (
+        <View style={styles.queueBanner}>
+          <Layers size={15} color="#38BDF8" />
+          <Text style={styles.queueBannerText}>
+            Queue: {queuedCount} file{queuedCount > 1 ? 's' : ''} waiting to transfer...
+          </Text>
+        </View>
+      )}
+
       {/* Main Content / Transfer Feed */}
       {transfers.length === 0 ? (
         <View style={styles.emptyState}>
           <View style={styles.emptyIconCircle}>
-            <Ionicons name="swap-horizontal" size={36} color="#38BDF8" />
+            <ArrowLeftRight size={36} color="#38BDF8" />
           </View>
           <Text style={styles.emptyTitle}>Connected & Ready!</Text>
           <Text style={styles.emptySubtitle}>
@@ -213,49 +257,49 @@ export default function TransferScreen({ roomCode, role, peerName, onDisconnect 
       {/* Floating Action Bar */}
       <View style={styles.actionBar}>
         <TouchableOpacity
-          style={[styles.actionBtn, isSending && styles.actionBtnDisabled]}
-          disabled={isSending}
+          style={[styles.actionBtn, isPicking && styles.actionBtnDisabled]}
+          disabled={isPicking}
           onPress={handleSendDocument}
           activeOpacity={0.7}
         >
           <View style={[styles.actionIconBox, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
-            <Ionicons name="document-text" size={20} color="#38BDF8" />
+            <FileText size={20} color="#38BDF8" />
           </View>
           <Text style={styles.actionLabel}>File</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionBtn, isSending && styles.actionBtnDisabled]}
-          disabled={isSending}
+          style={[styles.actionBtn, isPicking && styles.actionBtnDisabled]}
+          disabled={isPicking}
           onPress={handleSendImage}
           activeOpacity={0.7}
         >
           <View style={[styles.actionIconBox, { backgroundColor: 'rgba(168, 85, 247, 0.15)' }]}>
-            <Ionicons name="images" size={20} color="#A855F7" />
+            <Image size={20} color="#A855F7" />
           </View>
           <Text style={styles.actionLabel}>Gallery</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionBtn, isSending && styles.actionBtnDisabled]}
-          disabled={isSending}
+          style={[styles.actionBtn, isPicking && styles.actionBtnDisabled]}
+          disabled={isPicking}
           onPress={handleCaptureCamera}
           activeOpacity={0.7}
         >
           <View style={[styles.actionIconBox, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
-            <Ionicons name="camera" size={20} color="#F59E0B" />
+            <Camera size={20} color="#F59E0B" />
           </View>
           <Text style={styles.actionLabel}>Camera</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionBtn, isSending && styles.actionBtnDisabled]}
-          disabled={isSending}
+          style={[styles.actionBtn, isPicking && styles.actionBtnDisabled]}
+          disabled={isPicking}
           onPress={handleSendVideo}
           activeOpacity={0.7}
         >
           <View style={[styles.actionIconBox, { backgroundColor: 'rgba(236, 72, 153, 0.15)' }]}>
-            <Ionicons name="videocam" size={20} color="#EC4899" />
+            <Video size={20} color="#EC4899" />
           </View>
           <Text style={styles.actionLabel}>Video</Text>
         </TouchableOpacity>
@@ -266,7 +310,7 @@ export default function TransferScreen({ roomCode, role, peerName, onDisconnect 
           activeOpacity={0.7}
         >
           <View style={[styles.actionIconBox, { backgroundColor: 'rgba(34, 197, 94, 0.15)' }]}>
-            <Ionicons name="chatbox-ellipses" size={20} color="#22C55E" />
+            <MessageSquare size={20} color="#22C55E" />
           </View>
           <Text style={styles.actionLabel}>Text</Text>
         </TouchableOpacity>
@@ -414,5 +458,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#CBD5E1',
+  },
+  reconnectingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderBottomWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 10,
+  },
+  reconnectingText: {
+    color: '#FDE68A',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  queueBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    borderBottomWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    gap: 8,
+  },
+  queueBannerText: {
+    color: '#38BDF8',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
   },
 });

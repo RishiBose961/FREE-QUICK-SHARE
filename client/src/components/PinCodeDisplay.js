@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Radio, Copy, CheckCircle2, XCircle } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 
 export default function PinCodeDisplay({ pinCode, onCancel }) {
@@ -21,7 +21,7 @@ export default function PinCodeDisplay({ pinCode, onCancel }) {
     <View style={styles.container}>
       {/* Header icon badge */}
       <View style={styles.topIconCircle}>
-        <Ionicons name="radio-outline" size={32} color="#38BDF8" />
+        <Radio size={32} color="#38BDF8" />
       </View>
 
       <Text style={styles.heading}>Room PIN Created</Text>
@@ -44,11 +44,11 @@ export default function PinCodeDisplay({ pinCode, onCancel }) {
         onPress={handleCopy}
         activeOpacity={0.7}
       >
-        <Ionicons
-          name={copied ? 'checkmark-circle' : 'copy-outline'}
-          size={16}
-          color={copied ? '#22C55E' : '#38BDF8'}
-        />
+        {copied ? (
+          <CheckCircle2 size={16} color="#22C55E" />
+        ) : (
+          <Copy size={16} color="#38BDF8" />
+        )}
         <Text style={[styles.copyBtnText, copied && styles.copyBtnTextSuccess]}>
           {copied ? 'Code Copied to Clipboard!' : 'Copy Code to Clipboard'}
         </Text>
@@ -62,7 +62,7 @@ export default function PinCodeDisplay({ pinCode, onCancel }) {
 
       {onCancel ? (
         <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} activeOpacity={0.7}>
-          <Ionicons name="close-circle-outline" size={16} color="#94A3B8" />
+          <XCircle size={16} color="#94A3B8" />
           <Text style={styles.cancelText}>Cancel & Go Back</Text>
         </TouchableOpacity>
       ) : null}

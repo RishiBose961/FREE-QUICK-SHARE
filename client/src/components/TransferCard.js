@@ -1,6 +1,21 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Image, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  MessageSquare,
+  Send,
+  Video,
+  Play,
+  FileImage,
+  FileText,
+  ArrowDown,
+  ArrowUp,
+  CheckCircle2,
+  AlertCircle,
+  PlayCircle,
+  Download,
+  Share2,
+  Clock,
+} from 'lucide-react-native';
 import { fileTransferService } from '../services/fileTransferService';
 import VideoPlayerModal from './VideoPlayerModal';
 
@@ -20,11 +35,22 @@ export default function TransferCard({ item }) {
   const isText = item.type === 'text';
   const isIncoming = item.direction === 'incoming';
   const isCompleted = item.status === 'completed';
+  const isQueued = item.status === 'queued';
 
   const handleShare = async () => {
     if (item.localUri) {
       try {
         await fileTransferService.shareOrOpenFile(item.localUri, item.name, item.mimeType);
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+  };
+
+  const handleDownload = async () => {
+    if (item.localUri) {
+      try {
+        await fileTransferService.downloadFile(item.localUri, item.name, item.mimeType);
       } catch (err) {
         alert(err.message);
       }
@@ -41,11 +67,11 @@ export default function TransferCard({ item }) {
         ]}
       >
         <View style={styles.textHeaderRow}>
-          <Ionicons
-            name={isIncoming ? 'chatbubble-ellipses-outline' : 'paper-plane-outline'}
-            size={12}
-            color={isIncoming ? '#94A3B8' : '#7DD3FC'}
-          />
+          {isIncoming ? (
+            <MessageSquare size={12} color="#94A3B8" />
+          ) : (
+            <Send size={12} color="#7DD3FC" />
+          )}
           <Text style={[styles.textSender, isIncoming ? styles.textSenderIncoming : styles.textSenderOutgoing]}>
             {isIncoming ? (item.sender || 'Peer') : 'You'}
           </Text>
@@ -70,19 +96,19 @@ export default function TransferCard({ item }) {
     if (isVideo) {
       return (
         <View style={styles.videoIconWrapper}>
-          <Ionicons name="videocam" size={24} color="#EC4899" />
+          <Video size={24} color="#EC4899" />
           {isCompleted && (
             <View style={styles.playBadgeSmall}>
-              <Ionicons name="play" size={12} color="#FFFFFF" />
+              <Play size={12} color="#FFFFFF" />
             </View>
           )}
         </View>
       );
     }
     if (isImage) {
-      return <Ionicons name="image" size={24} color="#A855F7" />;
+      return <FileImage size={24} color="#A855F7" />;
     }
-    return <Ionicons name="document-text" size={24} color="#38BDF8" />;
+    return <FileText size={24} color="#38BDF8" />;
   };
 
   return (
@@ -108,11 +134,11 @@ export default function TransferCard({ item }) {
           <View style={styles.metaRow}>
             <Text style={styles.fileSize}>{formatBytes(item.size)}</Text>
             <View style={styles.dot} />
-            <Ionicons
-              name={isIncoming ? 'arrow-down' : 'arrow-up'}
-              size={11}
-              color={isIncoming ? '#38BDF8' : '#A855F7'}
-            />
+            {isIncoming ? (
+              <ArrowDown size={11} color="#38BDF8" />
+            ) : (
+              <ArrowUp size={11} color="#A855F7" />
+            )}
             <Text style={[styles.directionText, isIncoming ? styles.incomingText : styles.outgoingText]}>
               {isIncoming ? 'Received' : 'Sent'}
             </Text>
@@ -125,33 +151,45 @@ export default function TransferCard({ item }) {
             styles.statusBadge,
             isCompleted
               ? styles.statusCompleted
+              : isQueued
+              ? styles.statusQueued
               : item.status === 'failed'
               ? styles.statusFailed
               : styles.statusTransferring,
           ]}
         >
           {isCompleted ? (
-            <Ionicons name="checkmark-circle" size={13} color="#22C55E" />
+            <CheckCircle2 size={13} color="#22C55E" />
+          ) : isQueued ? (
+            <Clock size={13} color="#FBBF24" />
           ) : item.status === 'failed' ? (
-            <Ionicons name="alert-circle" size={13} color="#EF4444" />
+            <AlertCircle size={13} color="#EF4444" />
           ) : null}
           <Text
             style={[
               styles.statusText,
               isCompleted
                 ? styles.statusTextCompleted
+                : isQueued
+                ? styles.statusTextQueued
                 : item.status === 'failed'
                 ? styles.statusTextFailed
                 : styles.statusTextTransferring,
             ]}
           >
-            {isCompleted ? 'Done' : item.status === 'failed' ? 'Failed' : `${item.progress || 0}%`}
+            {isCompleted
+              ? 'Done'
+              : isQueued
+              ? 'Queued'
+              : item.status === 'failed'
+              ? 'Failed'
+              : `${item.progress || 0}%`}
           </Text>
         </View>
       </View>
 
       {/* Progress Bar (during transfer) */}
-      {!isCompleted && item.status !== 'failed' && (
+      {!isCompleted && !isQueued && item.status !== 'failed' && (
         <View style={styles.progressBarBg}>
           <View style={[styles.progressBarFill, { width: `${item.progress || 0}%` }]} />
         </View>
@@ -159,42 +197,38 @@ export default function TransferCard({ item }) {
 
       {/* Action buttons if completed and file is available */}
       {isCompleted && item.localUri && (
-        <View style={isVideo ? styles.videoActionRow : null}>
+        <View style={styles.actionRowContainer}>
+          {/* 1. Primary Dedicated Download Button */}
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.downloadPrimaryBtn]}
+            onPress={handleDownload}
+            activeOpacity={0.7}
+          >
+            <Download size={15} color="#0F172A" />
+            <Text style={styles.downloadPrimaryText}>Download</Text>
+          </TouchableOpacity>
+
+          {/* 2. Secondary Share Button */}
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.shareSecondaryBtn]}
+            onPress={handleShare}
+            activeOpacity={0.7}
+          >
+            <Share2 size={15} color="#38BDF8" />
+            <Text style={styles.shareSecondaryText}>Share</Text>
+          </TouchableOpacity>
+
+          {/* 3. For Videos: Dedicated Watch / Play Button */}
           {isVideo && (
             <TouchableOpacity
               style={[styles.actionBtn, styles.playVideoBtn]}
               onPress={() => setVideoModalVisible(true)}
               activeOpacity={0.7}
             >
-              <Ionicons name="play-circle" size={16} color="#FFFFFF" />
-              <Text style={styles.playVideoBtnText}>
-                {Platform.OS === 'web' ? 'Watch Video' : 'Play Video'}
-              </Text>
+              <PlayCircle size={15} color="#FFFFFF" />
+              <Text style={styles.playVideoBtnText}>Play</Text>
             </TouchableOpacity>
           )}
-
-          <TouchableOpacity
-            style={[styles.actionBtn, isVideo ? styles.shareVideoBtn : styles.shareFullBtn]}
-            onPress={handleShare}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={Platform.OS === 'web' ? 'download-outline' : 'share-social-outline'}
-              size={15}
-              color={isVideo ? '#94A3B8' : '#38BDF8'}
-            />
-            <Text style={[styles.shareBtnText, isVideo && styles.shareVideoText]}>
-              {Platform.OS === 'web'
-                ? isVideo
-                  ? 'Download'
-                  : `Save File`
-                : isImage
-                ? 'Save / Share'
-                : isVideo
-                ? 'Save / Share'
-                : 'Open / Share'}
-            </Text>
-          </TouchableOpacity>
         </View>
       )}
 
@@ -314,6 +348,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.25)',
   },
+  statusQueued: {
+    backgroundColor: 'rgba(251, 191, 36, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.25)',
+  },
   statusText: {
     fontSize: 11,
     fontWeight: '700',
@@ -323,6 +362,9 @@ const styles = StyleSheet.create({
   },
   statusTextTransferring: {
     color: '#38BDF8',
+  },
+  statusTextQueued: {
+    color: '#FBBF24',
   },
   statusTextFailed: {
     color: '#F87171',
@@ -338,7 +380,7 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#38BDF8',
   },
-  videoActionRow: {
+  actionRowContainer: {
     flexDirection: 'row',
     gap: 8,
     marginTop: 10,
@@ -348,38 +390,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
     borderRadius: 10,
   },
-  shareFullBtn: {
+  downloadPrimaryBtn: {
+    flex: 1.2,
+    backgroundColor: '#38BDF8',
+  },
+  downloadPrimaryText: {
+    color: '#0F172A',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  shareSecondaryBtn: {
+    flex: 1,
     backgroundColor: 'rgba(56, 189, 248, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-    marginTop: 10,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  shareSecondaryText: {
+    color: '#38BDF8',
+    fontWeight: '700',
+    fontSize: 12,
   },
   playVideoBtn: {
-    flex: 1.2,
+    flex: 0.9,
     backgroundColor: '#EC4899',
   },
   playVideoBtnText: {
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 12,
-  },
-  shareVideoBtn: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  shareBtnText: {
-    color: '#38BDF8',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  shareVideoText: {
-    color: '#CBD5E1',
   },
   // Text message bubbles
   textMessageContainer: {

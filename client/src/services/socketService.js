@@ -30,11 +30,16 @@ class SocketService {
     if (cleanUrl.endsWith('/')) {
       cleanUrl = cleanUrl.slice(0, -1);
     }
-    this.serverUrl = cleanUrl;
-    if (this.socket) {
-      this.disconnect();
-      this.connect();
+    // If URL is identical and socket already exists, avoid dropping existing session
+    if (this.serverUrl === cleanUrl && this.socket) {
+      if (!this.socket.connected) {
+        this.socket.connect();
+      }
+      return;
     }
+    this.serverUrl = cleanUrl;
+    this.disconnect();
+    this.connect();
   }
 
   setCurrentRoom(roomCode) {
@@ -42,15 +47,21 @@ class SocketService {
   }
 
   connect() {
-    if (this.socket && this.socket.connected) {
+    if (this.socket) {
+      if (this.socket.connected) {
+        return this.socket;
+      }
+      // If socket instance already created and active, trigger connect
+      this.socket.connect();
       return this.socket;
     }
 
     console.log(`[Socket] Connecting to ${this.serverUrl}...`);
     this.socket = io(this.serverUrl, {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 10,
-      timeout: 10000,
+      reconnectionAttempts: 30,
+      timeout: 15000,
+      autoConnect: true,
     });
 
     this.socket.on('connect', () => {

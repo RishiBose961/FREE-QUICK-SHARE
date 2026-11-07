@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Pencil, XCircle, Check } from 'lucide-react-native';
 
 export default function EditDeviceNameModal({ visible, currentName, onClose, onSave }) {
   const [name, setName] = useState(currentName || '');
@@ -36,7 +36,7 @@ export default function EditDeviceNameModal({ visible, currentName, onClose, onS
         <View style={styles.modalCard}>
           <View style={styles.headerRow}>
             <View style={styles.iconCircle}>
-              <Ionicons name="pencil" size={18} color="#38BDF8" />
+              <Pencil size={18} color="#38BDF8" />
             </View>
             <View style={styles.headerTextCol}>
               <Text style={styles.title}>Edit Device Name</Text>
@@ -58,7 +58,7 @@ export default function EditDeviceNameModal({ visible, currentName, onClose, onS
             />
             {name.length > 0 && (
               <TouchableOpacity onPress={() => setName('')} style={styles.clearBtn}>
-                <Ionicons name="close-circle" size={18} color="#64748B" />
+                <XCircle size={18} color="#64748B" />
               </TouchableOpacity>
             )}
           </View>
@@ -74,7 +74,7 @@ export default function EditDeviceNameModal({ visible, currentName, onClose, onS
               onPress={handleSave}
               activeOpacity={0.8}
             >
-              <Ionicons name="checkmark" size={16} color="#0F172A" />
+              <Check size={16} color="#0F172A" />
               <Text style={styles.saveBtnText}>Save Name</Text>
             </TouchableOpacity>
           </View>

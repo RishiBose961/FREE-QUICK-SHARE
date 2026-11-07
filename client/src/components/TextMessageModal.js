@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MessageSquare, Send } from 'lucide-react-native';
 
 export default function TextMessageModal({ visible, onClose, onSend }) {
   const [message, setMessage] = useState('');
@@ -31,7 +31,7 @@ export default function TextMessageModal({ visible, onClose, onSend }) {
         <View style={styles.modalCard}>
           <View style={styles.headerRow}>
             <View style={styles.iconCircle}>
-              <Ionicons name="chatbox-ellipses-outline" size={20} color="#22C55E" />
+              <MessageSquare size={20} color="#22C55E" />
             </View>
             <View style={styles.headerCol}>
               <Text style={styles.title}>Send Quick Note</Text>
@@ -64,7 +64,7 @@ export default function TextMessageModal({ visible, onClose, onSend }) {
               onPress={handleSend}
               activeOpacity={0.8}
             >
-              <Ionicons name="paper-plane" size={15} color="#0F172A" />
+              <Send size={15} color="#0F172A" />
               <Text style={styles.sendBtnText}>Send Note</Text>
             </TouchableOpacity>
           </View>

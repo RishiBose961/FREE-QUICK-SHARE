@@ -22,13 +22,16 @@ app.use(express.json());
 
 const httpServer = createServer(app);
 
-// Initialize Socket.io with high buffer capacity for video and media chunk streaming
+// Initialize Socket.io with high buffer capacity and reliable ping timeouts
 const io = new Server(httpServer, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST'],
   },
   maxHttpBufferSize: 5e7, // 50 MB buffer limit for socket packets
+  pingTimeout: 35000,
+  pingInterval: 12000,
+  connectTimeout: 20000,
 });
 
 const PORT = process.env.PORT || 4000;
@@ -331,7 +334,39 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-// 2. Get registered devices
+// 2. Download Android APK endpoint (allows phones/laptops on LAN to download the APK directly)
+app.get(['/download/apk', '/quickshare.apk', '/download/app'], (req, res) => {
+  const possiblePaths = [
+    path.resolve(__dirname, '../client/dist/quickshare.apk'),
+    path.resolve(__dirname, '../client/dist/QuickShare.apk'),
+    path.resolve(__dirname, '../client/quickshare.apk'),
+    path.resolve(__dirname, '../client/QuickShare.apk'),
+    path.resolve(__dirname, 'quickshare.apk'),
+    path.resolve(__dirname, 'QuickShare.apk'),
+  ];
+
+  for (const apkPath of possiblePaths) {
+    if (fs.existsSync(apkPath)) {
+      console.log(`📦 Serving APK download from: ${apkPath}`);
+      return res.download(apkPath, 'QuickShare.apk');
+    }
+  }
+
+  res.status(404).send(`
+    <html>
+      <head><title>QuickShare APK Download</title></head>
+      <body style="font-family: sans-serif; background: #0F172A; color: #F8FAFC; padding: 40px; text-align: center;">
+        <h2 style="color: #38BDF8;">QuickShare Android App (.apk)</h2>
+        <p style="color: #94A3B8; max-width: 500px; margin: 0 auto 20px auto; line-height: 1.6;">
+          To make the APK downloadable over your local Wi-Fi, build the APK and place <b>QuickShare.apk</b> in the <code>client/dist/</code> or <code>server/</code> folder.
+        </p>
+        <a href="/" style="display: inline-block; background: #38BDF8; color: #0F172A; font-weight: bold; padding: 10px 20px; border-radius: 8px; text-decoration: none;">Return to QuickShare Web</a>
+      </body>
+    </html>
+  `);
+});
+
+// 3. Get registered devices
 app.get('/api/devices', async (req, res) => {
   try {
     if (isMongoConnected) {
@@ -414,7 +449,9 @@ io.on('connection', (socket) => {
 
       socketToDevice.set(socket.id, device.deviceId);
       socket.join(device.permanentRoomCode);
-      socketToRoom.set(socket.id, device.permanentRoomCode);
+      if (!socketToRoom.has(socket.id)) {
+        socketToRoom.set(socket.id, device.permanentRoomCode);
+      }
 
       console.log(
         `📱 [Device Registered] "${device.deviceName}" (ID: ${device.deviceId}) -> Permanent Room #${device.permanentRoomCode}`
@@ -726,9 +763,15 @@ io.on('connection', (socket) => {
       socket.join(code);
       socketToRoom.set(socket.id, code);
       if (rooms.has(code)) {
-        rooms.get(code).peers.add(socket.id);
+        const room = rooms.get(code);
+        room.peers.add(socket.id);
+        console.log(`[Socket Rejoined] ID: ${socket.id} to room ${code} (peers: ${room.peers.size})`);
+        io.to(code).emit('peer-reconnected', {
+          roomCode: code,
+          socketId: socket.id,
+          message: 'Peer has reconnected successfully!',
+        });
       }
-      console.log(`[Socket Rejoined] ID: ${socket.id} to room ${code}`);
     }
   });
 
@@ -777,47 +820,99 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Explicit user exit
   socket.on('leave-room', () => {
     const roomCode = socketToRoom.get(socket.id);
     if (roomCode) {
-      cleanupRoom(roomCode, socket.id);
+      const room = rooms.get(roomCode);
+      if (room) {
+        room.peers.delete(socket.id);
+        socketToRoom.delete(socket.id);
+        socket.leave(roomCode);
+        console.log(`[Room Exit] Socket ${socket.id} intentionally left room ${roomCode}`);
+        io.to(roomCode).emit('peer-disconnected', {
+          intentional: true,
+          message: 'The connected peer has left the session.',
+          roomCode,
+        });
+        if (room.peers.size === 0 && !room.isPermanent) {
+          rooms.delete(roomCode);
+          console.log(`[Room Closed] Code: ${roomCode}`);
+        }
+      }
     }
   });
 
-  // Handle Disconnect
+  // Handle Disconnect (transport drop / network switch / backgrounding)
   socket.on('disconnect', async () => {
     console.log(`[Socket Disconnected] ID: ${socket.id}`);
     const deviceId = socketToDevice.get(socket.id);
     socketToDevice.delete(socket.id);
 
     if (deviceId) {
-      const dev = memoryDevices.get(deviceId);
-      if (dev && dev.socketId === socket.id) {
-        dev.isOnline = false;
-        dev.socketId = null;
-        dev.lastSeen = new Date();
-      }
-
-      if (isMongoConnected) {
-        try {
-          await Device.updateOne(
-            { deviceId, socketId: socket.id },
-            { isOnline: false, socketId: null, lastSeen: new Date() }
-          );
-        } catch (_) {}
-      }
-
-      broadcastOnlineDevices();
+      // 15 seconds grace period before marking device offline in case of quick reconnection
+      setTimeout(async () => {
+        let isReconnected = false;
+        for (const sid of socketToDevice.keys()) {
+          if (socketToDevice.get(sid) === deviceId) {
+            isReconnected = true;
+            break;
+          }
+        }
+        if (!isReconnected) {
+          const dev = memoryDevices.get(deviceId);
+          if (dev) {
+            dev.isOnline = false;
+            dev.socketId = null;
+            dev.lastSeen = new Date();
+          }
+          if (isMongoConnected) {
+            try {
+              await Device.updateOne(
+                { deviceId },
+                { isOnline: false, socketId: null, lastSeen: new Date() }
+              );
+            } catch (_) {}
+          }
+          broadcastOnlineDevices();
+        }
+      }, 15000);
     }
 
     const roomCode = socketToRoom.get(socket.id);
     if (roomCode) {
-      setTimeout(() => {
-        const room = rooms.get(roomCode);
-        if (room && room.peers.has(socket.id)) {
-          cleanupRoom(roomCode, socket.id);
-        }
-      }, 5000);
+      const room = rooms.get(roomCode);
+      if (room) {
+        // Immediately remove this stale socket ID so old IDs don't linger
+        room.peers.delete(socket.id);
+        socketToRoom.delete(socket.id);
+
+        // Notify room that peer connection is temporarily interrupted, DO NOT kick them out
+        socket.to(roomCode).emit('peer-reconnecting', {
+          roomCode,
+          message: 'Peer connection momentarily interrupted. Waiting for reconnect...',
+        });
+
+        // 25 second grace period to allow phone to reconnect without ending the session
+        setTimeout(() => {
+          const activeRoom = rooms.get(roomCode);
+          if (!activeRoom) return;
+
+          if (activeRoom.peers.size === 0) {
+            if (!activeRoom.isPermanent) {
+              rooms.delete(roomCode);
+              console.log(`[Room Expired] Code: ${roomCode}`);
+            }
+          } else {
+            // Room still has someone waiting, but disconnected peer never rejoined
+            io.to(roomCode).emit('peer-disconnected', {
+              intentional: false,
+              message: 'Peer connection timed out after 25s.',
+              roomCode,
+            });
+          }
+        }, 25000);
+      }
     }
   });
 });

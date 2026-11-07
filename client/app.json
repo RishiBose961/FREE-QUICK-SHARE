@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "QuickShare",
+    "slug": "quickshare",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "QuickShare needs access to your photo library to send photos and videos.",
+        "NSPhotoLibraryAddUsageDescription": "QuickShare needs permission to save received photos and videos to your library.",
+        "NSCameraUsageDescription": "QuickShare needs access to your camera so you can take and share photos directly."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "permissions": [
+        "INTERNET",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_VIDEO",
+        "READ_MEDIA_IMAGES"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow QuickShare to access your photos and videos to share them with peers.",
+          "cameraPermission": "Allow QuickShare to access your camera so you can take and share photos directly."
+        }
+      ]
+    ]
+  }
+}

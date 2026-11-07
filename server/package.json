@@ -1,0 +1,18 @@
+{
+  "name": "quickshare-server",
+  "version": "1.0.0",
+  "description": "QuickShare 4-digit code signaling and chunk relay server",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^18.0.9",
+    "express": "^4.21.2",
+    "mongoose": "^9.12.0",
+    "socket.io": "^4.8.1"
+  }
+}

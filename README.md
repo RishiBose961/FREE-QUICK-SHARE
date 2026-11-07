@@ -721,5 +721,3 @@ curl http://<raspberry-pi-ip>:4000/api/status
 ## 📄 License
 
 This project is licensed under the MIT License — see the [LICENSE](client/LICENSE) file for details.
-#   F R E E - Q U I C K - S H A R E  
- 
